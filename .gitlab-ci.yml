@@ -1,0 +1,54 @@
+stages:
+  - build
+  - push
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ''
+  REGISTRY_URL: 'docker.io'
+  IMAGE_NAME: 'CESAR908/deploy-pipeline-app'
+  IMAGE_TAG: '$CI_COMMIT_SHORT_SHA'
+  GCP_PROJECT_ID: 'seu-projeto-gcp'
+  GKE_CLUSTER_NAME: 'seu-cluster-gke'
+  GKE_ZONE: 'us-central1-a'
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker build -t $IMAGE_NAME:latest .
+  only:
+    - deploy-kubernetes
+
+push:
+  stage: push
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    - docker push $IMAGE_NAME:latest
+  only:
+    - deploy-kubernetes
+  dependencies:
+    - build
+
+deploy:
+  stage: deploy
+  image: google/cloud-sdk:latest
+  script:
+    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > ${HOME}/gcp-key.json
+    - gcloud auth activate-service-account --key-file ${HOME}/gcp-key.json
+    - gcloud config set project $GCP_PROJECT_ID
+    - gcloud container clusters get-credentials $GKE_CLUSTER_NAME --zone $GKE_ZONE
+    - kubectl set image deployment/deploy-pipeline-app app=$IMAGE_NAME:$IMAGE_TAG -n default
+    - kubectl rollout status deployment/deploy-pipeline-app -n default
+  only:
+    - deploy-kubernetes
+  dependencies:
+    - push

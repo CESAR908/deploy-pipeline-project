@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-pipeline-app
+  namespace: default
+  labels:
+    app: deploy-pipeline-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: deploy-pipeline-app
+  template:
+    metadata:
+      labels:
+        app: deploy-pipeline-app
+    spec:
+      containers:
+        - name: app
+          image: CESAR908/deploy-pipeline-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
