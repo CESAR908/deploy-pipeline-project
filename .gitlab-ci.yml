@@ -1,0 +1,48 @@
+stages:
+  - build
+  - push
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ''
+  REGISTRY_URL: 'docker.io'
+  IMAGE_NAME: 'CESAR908/deploy-pipeline-app'
+  IMAGE_TAG: '$CI_COMMIT_SHORT_SHA'
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker build -t $IMAGE_NAME:latest .
+  only:
+    - deploy-docker
+
+push:
+  stage: push
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    - docker push $IMAGE_NAME:latest
+  only:
+    - deploy-docker
+  dependencies:
+    - build
+
+deploy:
+  stage: deploy
+  image: docker:latest
+  script:
+    - echo "Deploying Docker container..."
+    - docker pull $IMAGE_NAME:latest
+    - docker run -d -p 3000:3000 --name deploy-pipeline-app-$CI_COMMIT_SHORT_SHA $IMAGE_NAME:latest
+  only:
+    - deploy-docker
+  dependencies:
+    - push
